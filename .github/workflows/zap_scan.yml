@@ -1,57 +1,41 @@
-name: ZAP Scan
+name: ZAP DAST Scan
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  zapscan:  # Changed from zap_scan to zapscan
+  dast-scan:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
 
       - name: Install dependencies
         run: npm install
 
-      - name: Build app
-        run: npm run build
-
-      - name: Start app
+      - name: Start Next.js app
+        run: npm run dev &
+        
+      - name: Wait for app to start
         run: |
-          nohup npm run start &> log.txt &
-          sleep 10
+          for i in {1..30}; do
+            curl -s http://localhost:3000 && break || sleep 2
+          done
 
-      - name: Run ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.10.0
-        with:
-          target: 'http://localhost:3000'
-          token: ${{ secrets.ZAP_TOKEN }}
+      - name: Run OWASP ZAP Baseline Scan
+        run: |
+          docker run --network="host" -t owasp/zap2docker-stable zap-baseline.py -t http://localhost:3000 -r zap-report.html
 
-      - name: List generated report files
-        run: ls -lah report_*
-
-      - name: Upload ZAP Report (HTML)
+      - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: zapreport-html
-          path: report_html.html
-
-      - name: Upload ZAP Report (Markdown)
-        uses: actions/upload-artifact@v4
-        with:
-          name: zapreport-md
-          path: report_md.md
-
-      - name: Upload ZAP Report (JSON)
-        uses: actions/upload-artifact@v4
-        with:
-          name: zapreport-json
-          path: report_json.json
+          name: ZAP-Report
+          path: zap-report.html
