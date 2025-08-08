@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  zap_scan:
+  zapscan:  # Changed from zap_scan to zapscan
     runs-on: ubuntu-latest
 
     steps:
@@ -41,17 +41,17 @@ jobs:
       - name: Upload ZAP Report (HTML)
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report-html
+          name: zapreport-html
           path: report_html.html
 
       - name: Upload ZAP Report (Markdown)
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report-md
+          name: zapreport-md
           path: report_md.md
 
       - name: Upload ZAP Report (JSON)
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report-json
+          name: zapreport-json
           path: report_json.json
