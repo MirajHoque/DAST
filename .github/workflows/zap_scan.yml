@@ -1,46 +1,58 @@
-name: ZAP Scan
+name: ZAP DAST Scan
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  zap_scan:
-    name: OWASP ZAP Baseline Scan
-    runs-on: ubuntu-latest  # GitHub-hosted runner
+  dast-scan:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      # 1. Checkout repo
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Set up Node.js
+      # 2. Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '18'
 
-      - name: Install Dependencies
+      # 3. Install dependencies
+      - name: Install dependencies
         run: npm install
 
-      - name: Build App
-        run: npm run build
-
-      - name: Start App in Background
+      # 4. Start Next.js app in background
+      - name: Start Next.js app
+        run: npm run dev &
+        
+      # 5. Wait until the app is reachable
+      - name: Wait for app to be ready
         run: |
-          nohup npm run start &> log.txt &
-          sleep 10
+          for i in {1..30}; do
+            if curl -s http://localhost:3000 > /dev/null; then
+              echo "App is up!"
+              break
+            fi
+            echo "Waiting for app..."
+            sleep 2
+          done
 
+      # 6. Run OWASP ZAP Baseline Scan in Docker
       - name: Run ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.10.0
-        with:
-          target: 'http://localhost:3000'
-          token: ${{ secrets.ZAP_TOKEN }}
-          createIssue: true
-          issueTitle: 'ZAP Scan Alerts Found'
-          failAction: false  # Optional: don’t fail workflow on alerts
+        run: |
+          docker run --rm \
+            --add-host=host.docker.internal:host-gateway \
+            -t zaproxy/zap2docker-stable \
+            zap-baseline.py \
+            -t http://host.docker.internal:3000 \
+            -r zap-report.html
 
+      # 7. Upload ZAP report as artifact
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: zap_scan_report
-          path: report_html.html  # ZAP creates this file
+          name: ZAP-Report
+          path: zap-report.html
