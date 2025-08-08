@@ -40,12 +40,12 @@ jobs:
             sleep 2
           done
 
-      # 6. Run OWASP ZAP Baseline Scan in Docker
+      # 6. Run OWASP ZAP Baseline Scan from GHCR
       - name: Run ZAP Baseline Scan
         run: |
           docker run --rm \
             --add-host=host.docker.internal:host-gateway \
-            -t zaproxy/zap2docker-stable \
+            ghcr.io/zaproxy/zaproxy:stable \
             zap-baseline.py \
             -t http://host.docker.internal:3000 \
             -r zap-report.html
