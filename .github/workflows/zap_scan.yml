@@ -44,9 +44,21 @@ jobs:
         with:
           target: 'http://localhost:3000'
 
+      - name: Debug - List files after ZAP scan
+        run: |
+          echo "Files in current directory:"
+          ls -la
+          echo "Looking for ZAP reports:"
+          find . -name "*.html" -o -name "*.json" -o -name "*.md" | head -10
+        if: always()
+
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
-          path: report_html.html
-        if: always()  # Upload report even if scan fails
+          name: zap-baseline-report
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: warn
+        if: always()
