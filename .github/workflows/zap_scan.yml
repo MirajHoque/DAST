@@ -6,40 +6,55 @@ on:
   workflow_dispatch:
 
 permissions:
-  issues: write
   contents: read
+  issues: write
 
 jobs:
   dast-scan:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Checkout repo
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 2. Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
 
+      # 3. Install dependencies
       - name: Install dependencies
         run: npm install
 
+      # 4. Start Next.js app in background
       - name: Start Next.js app
         run: npm run dev &
-      
-      - name: Wait for app to start
+
+      # 5. Wait until the app is reachable
+      - name: Wait for app to be ready
         run: |
           for i in {1..30}; do
-            curl -s http://localhost:3000 && break || sleep 2
+            if curl -s http://localhost:3000 > /dev/null; then
+              echo "App is up!"
+              break
+            fi
+            echo "Waiting for app..."
+            sleep 2
           done
 
-      - name: Run OWASP ZAP Baseline Scan
+      # 6. Run OWASP ZAP Baseline Scan from GHCR
+      - name: Run ZAP Baseline Scan
         run: |
-          docker run -t zaproxy/zap2docker-stable zap-baseline.py \
+          docker run --rm \
+            --add-host=host.docker.internal:host-gateway \
+            ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py \
             -t http://host.docker.internal:3000 \
             -r zap-report.html
 
+      # 7. Upload ZAP report as artifact
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
