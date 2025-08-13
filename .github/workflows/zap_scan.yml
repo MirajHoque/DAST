@@ -47,6 +47,6 @@ jobs:
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: ZAP-Report
+          name: zap-report
           path: report_html.html
         if: always()  # Upload report even if scan fails
