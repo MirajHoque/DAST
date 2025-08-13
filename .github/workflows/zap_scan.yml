@@ -39,8 +39,23 @@ jobs:
             sleep 2
           done
 
+      - name: Fix workspace permissions
+        run: |
+          sudo chmod -R 777 ${{ github.workspace }}
+          sudo chown -R $(whoami):$(whoami) ${{ github.workspace }}
+
       - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.10.0
+        uses: zaproxy/action-baseline@v0.9.0
         with:
           target: 'http://localhost:3000'
-          artifact_name: 'zapreport'
+
+      - name: Upload ZAP Reports manually
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            report_html.html
+            report_json.json
+            report_md.md
+          if-no-files-found: ignore
+        if: always()
