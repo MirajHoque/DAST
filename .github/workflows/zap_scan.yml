@@ -1,44 +1,47 @@
-name: DAST Scan
+name: ZAP DAST Scan
 
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  contents: read
 
 jobs:
-  zap_scan:
+  dast-scan:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Run ZAP Baseline Scan
-        id: zap
-        uses: zaproxy/action-baseline@v0.12.0
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          target: "https://example.com" # Change to your target URL
-          rules_file_name: ""
-          cmd_options: "-a"
-        continue-on-error: true
+          node-version: '18'
 
-      - name: Ensure report is in workspace
+      - name: Install dependencies
+        run: npm install
+
+      - name: Start Next.js app
+        run: npm run dev &
+      
+      - name: Wait for app to start
         run: |
-          mkdir -p zap-results
-          if [ -f report_html.html ]; then
-            mv report_html.html zap-results/zap-report.html
-          elif [ -f zap-report.html ]; then
-            mv zap-report.html zap-results/zap-report.html
-          elif [ -f owasp-zap-scan-report.html ]; then
-            mv owasp-zap-scan-report.html zap-results/zap-report.html
-          else
-            echo "⚠️ No report file found, creating empty report."
-            echo "<html><body><h1>No ZAP Report Generated</h1></body></html>" > zap-results/zap-report.html
-          fi
+          for i in {1..30}; do
+            curl -s http://localhost:3000 && break || sleep 2
+          done
+
+      - name: Run OWASP ZAP Baseline Scan
+        run: |
+          docker run -t zaproxy/zap2docker-stable zap-baseline.py \
+            -t http://host.docker.internal:3000 \
+            -r zap-report.html
 
       - name: Upload ZAP Report
         uses: actions/upload-artifact@v4
         with:
-          name: zap-report
-          path: zap-results/zap-report.html
+          name: ZAP-Report
+          path: zap-report.html
