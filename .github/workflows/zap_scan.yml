@@ -32,7 +32,7 @@ jobs:
         run: |
           for i in {1..30}; do
             if curl -s http://localhost:3000 > /dev/null; then
-              echo "✅ App is up!"
+              echo "App is up!"
               break
             fi
             echo "⏳ Waiting for app..."
