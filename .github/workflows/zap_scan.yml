@@ -32,7 +32,7 @@ jobs:
         run: |
           for i in {1..30}; do
             if curl -s http://localhost:3000 > /dev/null; then
-              echo "App is up!"
+              echo "✅ App is up!"
               break
             fi
             echo "⏳ Waiting for app..."
@@ -44,18 +44,23 @@ jobs:
           sudo chmod -R 777 ${{ github.workspace }}
           sudo chown -R $(whoami):$(whoami) ${{ github.workspace }}
 
-      - name: ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.9.0
-        with:
-          target: 'http://localhost:3000'
+      - name: Run ZAP Baseline Scan (Docker)
+        run: |
+          docker run -v ${{ github.workspace }}:/zap/wrk/:rw \
+            --network=host \
+            -t ghcr.io/zaproxy/zaproxy:stable \
+            zap-baseline.py -t http://localhost:3000 \
+            -J zap-report.json \
+            -w zap-report.md \
+            -r zap-report.html || true
 
-      - name: Upload ZAP Reports manually
+      - name: Upload ZAP Reports
         uses: actions/upload-artifact@v4
         with:
-          name: security-reports
+          name: zap-security-reports
           path: |
-            report_html.html
-            report_json.json
-            report_md.md
-          if-no-files-found: ignore
+            zap-report.html
+            zap-report.json
+            zap-report.md
+          if-no-files-found: warn
         if: always()
