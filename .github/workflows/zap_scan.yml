@@ -1,4 +1,4 @@
-name: ZAP DAST Scan
+name: Security Scan (ZAP DAST + OWASP Dependency Check)
 
 on:
   push:
@@ -8,10 +8,60 @@ on:
 permissions:
   issues: write   # allow creating issues
   contents: read  # allow reading repo files
+  security-events: write  # for uploading SARIF results
 
 jobs:
+  dependency-check:
+    runs-on: ubuntu-latest
+    name: OWASP Dependency Check
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run OWASP Dependency Check
+        uses: dependency-check/Dependency-Check_Action@main
+        id: dependency-check
+        with:
+          project: 'my-nextjs-app'
+          path: '.'
+          format: 'ALL'
+          args: >
+            --enableRetired
+            --enableExperimental
+            --out reports
+            --suppression suppression.xml
+        continue-on-error: true
+
+      - name: Upload Dependency Check Reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-check-reports
+          path: |
+            reports/dependency-check-report.html
+            reports/dependency-check-report.json
+            reports/dependency-check-report.xml
+            reports/dependency-check-report.csv
+          if-no-files-found: warn
+        if: always()
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: reports/dependency-check-report.sarif
+        if: always()
+
   dast-scan:
     runs-on: ubuntu-latest
+    name: ZAP DAST Scan
 
     steps:
       - name: Checkout code
@@ -63,4 +113,59 @@ jobs:
             zap-report.json
             zap-report.md
           if-no-files-found: warn
+        if: always()
+
+  security-summary:
+    runs-on: ubuntu-latest
+    name: Security Summary
+    needs: [dependency-check, dast-scan]
+    if: always()
+    
+    steps:
+      - name: Download all reports
+        uses: actions/download-artifact@v4
+        
+      - name: Create Security Summary
+        run: |
+          echo "# 🔒 Security Scan Summary" > security-summary.md
+          echo "" >> security-summary.md
+          echo "## 📊 Scan Results" >> security-summary.md
+          echo "" >> security-summary.md
+          
+          echo "### 📦 Dependency Check" >> security-summary.md
+          if [ -f "dependency-check-reports/dependency-check-report.json" ]; then
+            echo "✅ Dependency check completed" >> security-summary.md
+            # Count vulnerabilities if JSON exists
+            if command -v jq >/dev/null 2>&1; then
+              HIGH_VULNS=$(jq '.dependencies[].vulnerabilities[]? | select(.severity == "HIGH") | length' dependency-check-reports/dependency-check-report.json 2>/dev/null | wc -l || echo "0")
+              MEDIUM_VULNS=$(jq '.dependencies[].vulnerabilities[]? | select(.severity == "MEDIUM") | length' dependency-check-reports/dependency-check-report.json 2>/dev/null | wc -l || echo "0")
+              echo "- High severity: $HIGH_VULNS" >> security-summary.md
+              echo "- Medium severity: $MEDIUM_VULNS" >> security-summary.md
+            fi
+          else
+            echo "❌ Dependency check failed" >> security-summary.md
+          fi
+          echo "" >> security-summary.md
+          
+          echo "### 🌐 DAST Scan (ZAP)" >> security-summary.md
+          if [ -f "zap-security-reports/zap-report.json" ]; then
+            echo "✅ ZAP scan completed" >> security-summary.md
+          else
+            echo "❌ ZAP scan failed" >> security-summary.md
+          fi
+          echo "" >> security-summary.md
+          
+          echo "## 📋 Reports Available" >> security-summary.md
+          echo "- **Dependency Check**: HTML, JSON, XML, CSV formats" >> security-summary.md
+          echo "- **ZAP DAST**: HTML, JSON, Markdown formats" >> security-summary.md
+          echo "" >> security-summary.md
+          echo "Download reports from the Artifacts section above." >> security-summary.md
+          
+          cat security-summary.md
+
+      - name: Upload Security Summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-summary
+          path: security-summary.md
         if: always()
